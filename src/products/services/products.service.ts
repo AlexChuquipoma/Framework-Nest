@@ -1,55 +1,73 @@
 import { Injectable } from '@nestjs/common';
-import { Product } from '../entities/product.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ProductEntity } from '../entities/product.entity';
+import { Product } from '../models/product.model';
+
 import { CreateProductDto } from '../dtos/create-product.dto';
 import { UpdateProductDto } from '../dtos/update-product.dto';
 import { PartialUpdateProductDto } from '../dtos/partial-update-product.dto';
-import { ProductMapper } from '../mappers/product-mapper';
 import { ProductResponseDto } from '../dtos/product-response.dto';
 
-@Injectable() 
+import { NotFoundException } from '../../exceptions/domain/not-found.exception';
+import { ConflictException } from '../../exceptions/domain/conflict.exception';
+
+@Injectable()
 export class ProductsService {
-  private products: Product[] = []; 
-  private idCounter = 1;
+  constructor(
+    @InjectRepository(ProductEntity)
+    private productRepo: Repository<ProductEntity>,
+  ) {}
 
-  findAll(): ProductResponseDto[] {
-    return this.products.map(p => ProductMapper.toResponse(p)); //
+  async findAll(): Promise<ProductResponseDto[]> {
+    const entities = await this.productRepo.find();
+    return entities.map((e) => Product.fromEntity(e).toResponseDto());
   }
 
-  findOne(id: number) {
-    const product = this.products.find(p => p.id === id);
-    if (!product) return { error: 'Product not found' };
-    return ProductMapper.toResponse(product); //
+  async findOne(id: number): Promise<ProductResponseDto> {
+    const entity = await this.productRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException(`Producto no encontrado con ID: ${id}`);
+    return Product.fromEntity(entity).toResponseDto();
   }
 
-  create(dto: CreateProductDto) {
-    const entity = ProductMapper.toEntity(this.idCounter++, dto);
-    this.products.push(entity);
-    return ProductMapper.toResponse(entity); //
+  async create(dto: CreateProductDto): Promise<ProductResponseDto> {
+    // VALIDACIÓN: Nombre único
+    const exists = await this.productRepo.findOne({ where: { name: dto.name } });
+    if (exists) {
+      throw new ConflictException(`Ya existe un producto con el nombre: ${dto.name}`);
+    }
+
+    const model = Product.fromDto(dto);
+    const entity = model.toEntity();
+    const saved = await this.productRepo.save(entity);
+    return Product.fromEntity(saved).toResponseDto();
   }
 
-  update(id: number, dto: UpdateProductDto) {
-    const index = this.products.findIndex(p => p.id === id);
-    if (index === -1) return { error: 'Product not found' };
+  async update(id: number, dto: UpdateProductDto): Promise<ProductResponseDto> {
+    const entity = await this.productRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException(`Producto no encontrado con ID: ${id}`);
 
-    const updated = { ...this.products[index], ...dto };
-    this.products[index] = updated;
-    return ProductMapper.toResponse(updated); //
+    let model = Product.fromEntity(entity);
+    model = model.update(dto);
+    
+    const saved = await this.productRepo.save(model.toEntity());
+    return Product.fromEntity(saved).toResponseDto();
   }
 
-  partialUpdate(id: number, dto: PartialUpdateProductDto) {
-    const index = this.products.findIndex(p => p.id === id);
-    if (index === -1) return { error: 'Product not found' };
+  async partialUpdate(id: number, dto: PartialUpdateProductDto): Promise<ProductResponseDto> {
+    const entity = await this.productRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException(`Producto no encontrado con ID: ${id}`);
 
-    const updated = { ...this.products[index], ...dto };
-    this.products[index] = updated;
-    return ProductMapper.toResponse(updated); //
+    let model = Product.fromEntity(entity);
+    model = model.partialUpdate(dto);
+
+    const saved = await this.productRepo.save(model.toEntity());
+    return Product.fromEntity(saved).toResponseDto();
   }
 
-  remove(id: number) {
-    const index = this.products.findIndex(p => p.id === id);
-    if (index === -1) return { error: 'Product not found' };
-
-    this.products.splice(index, 1);
-    return { message: 'Product deleted successfully' }; //
+  async remove(id: number): Promise<void> {
+    const entity = await this.productRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException(`Producto no encontrado con ID: ${id}`);
+    await this.productRepo.remove(entity);
   }
 }

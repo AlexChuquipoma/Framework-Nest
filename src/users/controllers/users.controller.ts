@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dtos/create-user.dto';
-import { lUpdateUserDto } from '../dtos/update-user.dto';
+import { UpdateUserDto } from '../dtos/update-user.dto';
 import { PartialUpdateUserDto } from '../dtos/partial-update-user-dto';
 
-@Controller('api/users') 
+@Controller('users') 
 export class UsersController {
   
   constructor(private readonly service: UsersService) {}
@@ -25,7 +25,7 @@ export class UsersController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: lUpdateUserDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.service.update(Number(id), dto);
   }
 

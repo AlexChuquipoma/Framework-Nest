@@ -1,4 +1,4 @@
-export class lUpdateUserDto {
+export class UpdateUserDto {
     name: string;
     email: string;
     password: string;
